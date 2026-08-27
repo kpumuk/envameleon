@@ -2,47 +2,56 @@
 
 require "test/unit"
 
-class ProcEnvironTest < Test::Unit::TestCase
+class ENVameleonTest < Test::Unit::TestCase
   INITIAL_ENVIRONMENT = ENV.to_h
-  INITIAL_PROC_ENVIRONMENT = if RUBY_PLATFORM.include?("linux")
+  INITIAL_PROC_DATA = if RUBY_PLATFORM.include?("linux")
     File.binread("/proc/self/environ")
   end
 
-  require "proc_environ"
+  require "envameleon"
 
   def setup
     @environment = INITIAL_ENVIRONMENT
-    @proc_environment = INITIAL_PROC_ENVIRONMENT
+    @proc_data = INITIAL_PROC_DATA
 
-    assert_not_empty(@proc_environment) if @proc_environment
+    assert_not_empty(@proc_data) if @proc_data
   end
 
   def test_require
-    require "proc_environ"
+    require "envameleon"
 
     assert_respond_to(ENV, :scrub_proc_data)
     assert_respond_to(ENV, :mask_proc_data)
     assert_respond_to(ENV, :drop_proc_data)
     assert_equal(@environment, ENV.to_h)
-    assert_equal(@proc_environment, File.binread("/proc/self/environ")) if @proc_environment
+    assert_equal(@proc_data, File.binread("/proc/self/environ")) if @proc_data
+  end
+
+  def test_methods_are_no_ops_without_linux
+    omit("Linux behavior is covered by the fork tests") if RUBY_PLATFORM.include?("linux")
+
+    assert_nil(ENV.mask_proc_data)
+    assert_nil(ENV.scrub_proc_data)
+    assert_nil(ENV.drop_proc_data)
+    assert_equal(@environment, ENV.to_h)
   end
 
   def test_mask_proc_data_survives_fork
-    proc_environment = fork_after(:mask_proc_data)
+    proc_data = fork_after(:mask_proc_data)
 
-    assert_equal(mask(@proc_environment), proc_environment) if proc_environment
+    assert_equal(mask(@proc_data), proc_data) if proc_data
   end
 
   def test_scrub_proc_data_survives_fork
-    proc_environment = fork_after(:scrub_proc_data)
+    proc_data = fork_after(:scrub_proc_data)
 
-    assert_equal("\0".b * @proc_environment.bytesize, proc_environment) if proc_environment
+    assert_equal("\0".b * @proc_data.bytesize, proc_data) if proc_data
   end
 
   def test_drop_proc_data_survives_fork
-    proc_environment = fork_after(:drop_proc_data, privileged: true)
+    proc_data = fork_after(:drop_proc_data, privileged: true)
 
-    assert_empty(proc_environment) if proc_environment
+    assert_empty(proc_data) if proc_data
   end
 
   private
@@ -56,8 +65,8 @@ class ProcEnvironTest < Test::Unit::TestCase
       begin
         result = ENV.public_send(method)
         child = fork do
-          proc_environment = File.binread("/proc/self/environ") if @proc_environment
-          Marshal.dump([:ok, result, ENV.to_h, proc_environment], writer)
+          proc_data = File.binread("/proc/self/environ") if @proc_data
+          Marshal.dump([:ok, result, ENV.to_h, proc_data], writer)
           writer.close
           exit! 0
         end

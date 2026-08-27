@@ -155,7 +155,7 @@ drop_proc_data(VALUE environment)
 #endif
 
 void
-Init_proc_environ(void)
+Init_envameleon(void)
 {
     ID environment_id = rb_intern2("ENV", 3);
     VALUE environment = rb_const_get(rb_cObject, environment_id);

@@ -1,137 +1,221 @@
-# proc-environ
+<a id="readme-top"></a>
 
-`proc-environ` can hide, mask, or drop the initial environment in
-`/proc/self/environ`. It leaves Ruby's `ENV` unchanged.
+<div align="center">
+  <img src="assets/envameleon.png" alt="ENVameleon — Leave no ENVidence." width="800">
+
+  <h1>ENVameleon</h1>
+  <p><strong>Leave no ENVidence.</strong></p>
+  <p>Hide the first process environment shown by Linux without changing Ruby's <code>ENV</code>.</p>
+  <p>
+    <a href="#about">About</a> ·
+    <a href="#getting-started">Get started</a> ·
+    <a href="#usage">Usage</a> ·
+    <a href="#how-it-works">How it works</a> ·
+    <a href="#development">Development</a>
+  </p>
+</div>
+
+## Table of Contents
+
+- [About](#about)
+- [Getting Started](#getting-started)
+- [Usage](#usage)
+- [How It Works](#how-it-works)
+- [Process Inheritance](#process-inheritance)
+- [Security Limits](#security-limits)
+- [Development](#development)
+- [License](#license)
+
+## About
+
+Linux exposes the environment passed at process start through
+`/proc/self/environ`. ENVameleon lets a Ruby process mask, scrub, or drop that
+view after boot. Ruby's live `ENV` stays intact.
+
+The gem has no runtime dependencies. Loading it does not change anything. Your
+app chooses when to call one of its three methods.
+
+## Getting Started
+
+### Requirements
+
+- CRuby 3.2 or newer
+- Linux for changes to `/proc/self/environ`
+- The Linux `CAP_SYS_RESOURCE` right only for `ENV.drop_proc_data`
+
+On other systems, all three methods are safe no-ops.
+
+### Installation
+
+Install the gem:
+
+```console
+gem install envameleon
+```
+
+Or add it to your `Gemfile`:
 
 ```ruby
-require "proc_environ"
+gem "envameleon"
+```
+
+Then load it:
+
+```ruby
+require "envameleon"
+```
+
+[Back to top](#readme-top).
+
+## Usage
+
+```ruby
+require "envameleon"
 
 ENV.mask_proc_data
 # SECRET=example becomes SECRET=e*****e in /proc/self/environ
 
 ENV.scrub_proc_data
-File.binread("/proc/self/environ").bytes.all?(&:zero?) # => true
-ENV["HOME"]                                           # remains available
+# /proc/self/environ now holds only NUL bytes
 
-ENV.drop_proc_data # requires CAP_SYS_RESOURCE
-File.empty?("/proc/self/environ")                     # => true
+ENV.drop_proc_data
+# /proc/self/environ is now zero bytes long
 ```
 
-A `require` call does not change the process environment. Call one of these
-methods when your app is ready:
+| Method | Result in `/proc/self/environ` | File length | Linux right | Return value | Non-Linux | Plain `fork` |
+| --- | --- | --- | --- | --- | --- | --- |
+| `ENV.mask_proc_data` | Names plus the first and last value byte | Unchanged | None | `nil` | No-op | Inherited |
+| `ENV.scrub_proc_data` | NUL bytes | Unchanged | None | `nil` | No-op | Inherited |
+| `ENV.drop_proc_data` | Empty | Zero | `CAP_SYS_RESOURCE` | `nil` on success | No-op | Inherited |
 
-- `ENV.scrub_proc_data` will fill the whole proc environment with NUL bytes.
-- `ENV.mask_proc_data` will keep each variable name and the first and last byte
-  of each value. It will replace the bytes between them with `*`.
-- `ENV.drop_proc_data` will make the proc file zero bytes long. It needs the Linux
-  `CAP_SYS_RESOURCE` capability.
+Choose the least power you need.
 
-Values with fewer than three bytes have no middle bytes, so masking leaves them
-unchanged.
+Without that right, `ENV.drop_proc_data` raises `Errno::EPERM` on
+Linux.
 
-All methods return `nil`. They do nothing on non-Linux systems. The gem does not
-use other gems. Scrub and mask need no Linux capabilities.
+Masking works on raw bytes, not characters. It replaces all value bytes except
+the first and last with `*`. Values shorter than three bytes stay unchanged.
 
-> [!IMPORTANT]
-> A plain `fork` gets the changed proc data for all three methods. A new
-> program started with `spawn`, `system`, or `exec` gets a fresh proc
-> environment. That program must load this gem and call a method for itself.
+[Back to top](#readme-top).
 
-## Forking servers
+## How It Works
 
-Call a method in each child at boot. This will also cover a worker that the
-server may start later. The code below calls `scrub_proc_data`. You do not need
-a capability for it. You can call either of the other methods instead.
+CRuby moves its active environment during startup. Linux still keeps the old
+range used by `/proc/self/environ`. ENVameleon reads that range from
+`/proc/self/stat`.
 
-### Unicorn
+Masking and scrubbing first check that Ruby no longer uses the old range. They
+then change those bytes in place. If Ruby still uses any of them, the method
+raises an error and changes nothing.
 
-Use Unicorn's `after_fork` hook in `config/unicorn.rb`:
+Dropping uses `PR_SET_MM_ENV_END` to move the end of the kernel's view to its
+start. This makes `/proc/self/environ` truly zero-length. Linux requires the
+`CAP_SYS_RESOURCE` right for that call.
+
+## Process Inheritance
+
+Call a method before `fork` and each child inherits the changed proc view. Ruby
+`ENV` remains available in the parent and children. The test suite checks this
+with a second fork for all three methods.
+
+`spawn`, `system`, and `exec` are different. They give the new program a fresh
+proc environment. That program must load ENVameleon and call a method itself.
+
+### Forking servers
+
+You may call a method in the parent before it forks. You may also call it from a
+worker boot hook. These examples use scrubbing, which needs no extra right.
+
+#### Unicorn
 
 ```ruby
-require "proc_environ"
+require "envameleon"
 
 after_fork do |_server, _worker|
   ENV.scrub_proc_data
 end
 ```
 
-### Puma
+#### Puma
 
-Use Puma's `before_worker_boot` hook in `config/puma.rb`. This hook will run in
-each cluster worker:
+Use `before_worker_boot` for cluster workers. In single mode, call the method
+during app boot.
 
 ```ruby
-require "proc_environ"
+require "envameleon"
 
 before_worker_boot do
   ENV.scrub_proc_data
 end
 ```
 
-Puma will not run this hook in single mode. In that mode, call the method once
-during app boot.
+#### Sidekiq
 
-### Sidekiq
-
-Standard Sidekiq uses threads and does not fork. Its `startup` event will run
-before it sends jobs to those threads. Sidekiq Enterprise Swarm can start
-several child processes. Each child will run this hook:
+Standard Sidekiq uses threads. Its startup hook runs before work begins. Sidekiq
+Enterprise Swarm runs the hook in each child.
 
 ```ruby
-require "proc_environ"
+require "envameleon"
 
 Sidekiq.configure_server do |config|
-  config.on(:startup) do
-    ENV.scrub_proc_data
-  end
+  config.on(:startup) { ENV.scrub_proc_data }
 end
 ```
 
-### Karafka
+#### Karafka
 
-Subscribe to Karafka's `app.running` event in `karafka.rb`. It will run in the
-server process. In Swarm mode, it will run in each forked node rather than the
-supervisor:
+The `app.running` event runs in the server process. In Swarm mode, it runs in
+each forked node.
 
 ```ruby
-require "proc_environ"
+require "envameleon"
 
 Karafka::App.monitor.subscribe("app.running") do
   ENV.scrub_proc_data
 end
 ```
 
-This code will clean each child, but not the parent or supervisor. As another
-option, call the method in the parent before it starts to fork. Each child will
-inherit the change. If a child calls `drop_proc_data`, it must still have
-`CAP_SYS_RESOURCE` at that point.
+If a child calls `ENV.drop_proc_data`, it must still have the needed Linux right.
 
-## How it works
+[Back to top](#readme-top).
 
-CRuby moves its active environment during startup. Linux still keeps the old
-range. Scrubbing and masking read its limits from `/proc/self/stat`. Before they
-write, they check that Ruby no longer uses that range. An unusual Ruby build may
-still use it. In that case, the method raises an error and changes nothing.
+## Security Limits
 
-The proc file keeps its original size after a scrub. Its content becomes NUL
-bytes. It does not become a zero-length file. No names or values remain.
-
-Dropping uses `PR_SET_MM_ENV_END` to move the end of the kernel's proc view to
-its start. This makes the proc file empty but does not overwrite its old memory.
-Linux requires `CAP_SYS_RESOURCE` for this operation. You can use this
-capability for much more than this gem.
-
-The gem changes only the memory shown by `/proc/self/environ`. It does not erase
-all copies of a secret. It does not protect against memory leaks, debuggers, or
+ENVameleon changes only what `/proc/self/environ` shows. It does not erase every
+copy of a secret. It gives no protection from memory disclosure, debuggers, or
 core dumps.
+
+Dropping leaves the old bytes in memory. Masking keeps variable names and the
+outer bytes of each value. Short values remain fully visible. Scrubbing
+overwrites the old proc range, but a secret may still exist elsewhere.
+
+`CAP_SYS_RESOURCE` grants powers beyond changing this proc view. Give it to a
+process only when you accept those powers. Masking and scrubbing do not
+need it.
+
+[Back to top](#readme-top).
 
 ## Development
 
+Build the native extension and run the `test/unit` suite:
+
 ```console
-ruby -Cext/proc_environ extconf.rb
-make -C ext/proc_environ
-ruby -Ilib -Iext test/test_proc_environ.rb
+ruby -Cext/envameleon extconf.rb
+make -C ext/envameleon
+ruby -Ilib -Iext test/test_envameleon.rb
 ```
 
-On Linux, the scrub and mask tests need no extra capability. The drop test runs
-when `CAP_SYS_RESOURCE` is available. If it is not, the test is omitted.
+On Linux, the drop test runs when `CAP_SYS_RESOURCE` is available. Otherwise,
+that one test is omitted.
+
+Build the gem with:
+
+```console
+gem build envameleon.gemspec
+```
+
+## License
+
+Distributed under the MIT License. See `LICENSE.txt`.
+
+[Back to top](#readme-top).

@@ -2,4 +2,4 @@
 
 require "mkmf"
 
-create_makefile("proc_environ/proc_environ")
+create_makefile("envameleon/envameleon")

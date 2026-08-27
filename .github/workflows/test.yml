@@ -28,13 +28,13 @@ jobs:
       - name: Install test dependency
         run: gem install test-unit --no-document
       - name: Configure extension
-        run: ruby -Cext/proc_environ extconf.rb
+        run: ruby -Cext/envameleon extconf.rb
       - name: Compile extension
-        run: make -C ext/proc_environ
+        run: make -C ext/envameleon
       - name: Run tests
-        run: ruby -Ilib -Iext test/test_proc_environ.rb
+        run: ruby -Ilib -Iext test/test_envameleon.rb
       - name: Run privileged Linux tests
         if: runner.os == 'Linux'
-        run: sudo --preserve-env=PATH ruby -Ilib -Iext test/test_proc_environ.rb
+        run: sudo --preserve-env=PATH ruby -Ilib -Iext test/test_envameleon.rb
       - name: Build gem
-        run: gem build proc-environ.gemspec
+        run: gem build envameleon.gemspec
