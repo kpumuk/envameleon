@@ -35,6 +35,6 @@ jobs:
         run: ruby -Ilib -Iext test/test_envameleon.rb
       - name: Run privileged Linux tests
         if: runner.os == 'Linux'
-        run: sudo --preserve-env=PATH ruby -Ilib -Iext test/test_envameleon.rb
+        run: sudo env "PATH=$PATH" ruby -Ilib -Iext test/test_envameleon.rb
       - name: Build gem
         run: gem build envameleon.gemspec
