@@ -1,0 +1,40 @@
+name: test
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  ruby-versions:
+    uses: ruby/actions/.github/workflows/ruby_versions.yml@master
+    with:
+      min_version: 3.2
+      engine: cruby
+
+  test:
+    needs: ruby-versions
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        ruby: ${{ fromJson(needs.ruby-versions.outputs.versions) }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9 # v1.316.0
+        with:
+          ruby-version: ${{ matrix.ruby }}
+      - name: Install test dependency
+        run: gem install test-unit --no-document
+      - name: Configure extension
+        run: ruby -Cext/proc_environ extconf.rb
+      - name: Compile extension
+        run: make -C ext/proc_environ
+      - name: Run tests
+        run: ruby -Ilib -Iext test/test_proc_environ.rb
+      - name: Run privileged Linux tests
+        if: runner.os == 'Linux'
+        run: sudo --preserve-env=PATH ruby -Ilib -Iext test/test_proc_environ.rb
+      - name: Build gem
+        run: gem build proc-environ.gemspec
