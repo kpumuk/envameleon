@@ -5,7 +5,7 @@ Gem::Specification.new do |spec|
   spec.version = "0.1.0"
   spec.authors = ["Dmytro Shteflyuk"]
   spec.summary = "Hide the process environment from /proc/self/environ"
-  spec.description = "Remap Linux's /proc/self/environ view without changing Ruby's ENV."
+  spec.description = "Scrub Linux's /proc/self/environ view without changing Ruby's ENV."
   spec.license = "MIT"
   spec.required_ruby_version = ">= 2.6"
   spec.files = Dir["README.md", "LICENSE.txt", "lib/**/*.rb", "ext/**/*.{c,rb}", "test/**/*.rb"]

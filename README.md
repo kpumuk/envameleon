@@ -1,29 +1,28 @@
 # proc-environ
 
-`proc-environ` empties `/proc/self/environ` when it is required, without
-changing Ruby's `ENV`.
+`proc-environ` scrubs the initial environment exposed by
+`/proc/self/environ`, without changing Ruby's `ENV`.
 
 ```ruby
 require "proc_environ"
 
-File.binread("/proc/self/environ") # => ""
-ENV["HOME"]                        # remains available
+File.binread("/proc/self/environ").bytes.all?(&:zero?) # => true
+ENV["HOME"]                                           # remains available
 ```
 
-The gem has no runtime dependencies and no public API. On non-Linux systems,
-requiring it is a no-op.
+The gem has no runtime dependencies, needs no Linux capabilities, and has no
+public API. On non-Linux systems, requiring it is a no-op.
 
-## Linux capability
+## How it works
 
-Linux requires `CAP_SYS_RESOURCE` for `PR_SET_MM`. Without that capability,
-requiring the gem raises `Errno::EPERM`; it never silently leaves the
-environment exposed.
+Linux keeps the initial environment range after CRuby moves its active
+environment elsewhere during startup. The extension reads `env_start` and
+`env_end` from `/proc/self/stat`, verifies that Ruby's active environment no
+longer points into that range, and overwrites the range with NUL bytes. An
+unusual Ruby build that still references the original range fails safely.
 
-For a container, grant only that capability:
-
-```console
-docker run --cap-add SYS_RESOURCE ...
-```
+The proc file retains its original byte length; its contents become all NUL
+bytes rather than a zero-length file. No environment names or values remain.
 
 The gem changes only the memory range exported through
 `/proc/self/environ`. It does not erase secrets from process memory and does
@@ -37,4 +36,4 @@ make -C ext/proc_environ
 ruby -Ilib -Iext test/test_proc_environ.rb
 ```
 
-The Linux end-to-end test must run with `CAP_SYS_RESOURCE`.
+The Linux end-to-end test runs without additional capabilities.
