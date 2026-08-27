@@ -67,17 +67,76 @@ ensure_environment_is_detached(unsigned long env_start, unsigned long env_end)
             rb_raise(rb_eRuntimeError, "Ruby ENV overlaps /proc/self/environ");
     }
 }
+
+static VALUE
+scrub_proc_data(VALUE environment)
+{
+    unsigned long env_start;
+    unsigned long env_end;
+
+    (void)environment;
+    read_env_range(&env_start, &env_end);
+    ensure_environment_is_detached(env_start, env_end);
+    memset((void *)env_start, 0, env_end - env_start);
+    return Qnil;
+}
+
+static VALUE
+mask_proc_data(VALUE environment)
+{
+    unsigned long env_start;
+    unsigned long env_end;
+    char *entry;
+
+    (void)environment;
+    read_env_range(&env_start, &env_end);
+    ensure_environment_is_detached(env_start, env_end);
+
+    for (entry = (char *)env_start; entry < (char *)env_end;) {
+        size_t remaining = (char *)env_end - entry;
+        char *terminator = memchr(entry, '\0', remaining);
+        char *equals;
+        char *value;
+        size_t value_length;
+
+        if (terminator == NULL)
+            rb_raise(rb_eRuntimeError, "invalid environment data");
+
+        equals = memchr(entry, '=', terminator - entry);
+        if (equals != NULL) {
+            value = equals + 1;
+            value_length = terminator - value;
+            if (value_length > 2)
+                memset(value + 1, '*', value_length - 2);
+        }
+
+        entry = terminator + 1;
+    }
+
+    return Qnil;
+}
+#else
+static VALUE
+scrub_proc_data(VALUE environment)
+{
+    (void)environment;
+    return Qnil;
+}
+
+static VALUE
+mask_proc_data(VALUE environment)
+{
+    (void)environment;
+    return Qnil;
+}
 #endif
 
 void
 Init_proc_environ(void)
 {
-#ifdef __linux__
-    unsigned long env_start;
-    unsigned long env_end;
+    ID environment_id = rb_intern2("ENV", 3);
+    VALUE environment = rb_const_get(rb_cObject, environment_id);
 
-    read_env_range(&env_start, &env_end);
-    ensure_environment_is_detached(env_start, env_end);
-    memset((void *)env_start, 0, env_end - env_start);
-#endif
+    rb_define_singleton_method(environment, "scrub_proc_data", scrub_proc_data, 0);
+    rb_define_singleton_method(environment, "mask_proc_data", mask_proc_data, 0);
 }
