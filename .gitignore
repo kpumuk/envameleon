@@ -1,0 +1,8 @@
+/ext/proc_environ/Makefile
+/ext/proc_environ/mkmf.log
+/ext/proc_environ/*.bundle
+/ext/proc_environ/*.bundle.dSYM/
+/ext/proc_environ/*.o
+/ext/proc_environ/*.so
+/proc-environ-*.gem
+/pkg/
