@@ -8,7 +8,7 @@ Gem::Specification.new do |spec|
   spec.description = "Scrub, mask, or drop Linux's /proc/self/environ view without changing Ruby's ENV."
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.2"
-  spec.files = Dir["README.md", "LICENSE.txt", "assets/**/*", "lib/**/*.rb", "ext/**/*.{c,rb}", "test/**/*.rb"]
+  spec.files = Dir["README.md", "LICENSE.txt", "assets/**/*", "lib/**/*.rb", "ext/**/*.{c,rb}"]
   spec.require_paths = ["lib"]
   spec.extensions = ["ext/envameleon/extconf.rb"]
 end
