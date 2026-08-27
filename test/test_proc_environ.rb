@@ -3,43 +3,88 @@
 require "test/unit"
 
 class ProcEnvironTest < Test::Unit::TestCase
-  def test_proc_data
-    environment = ENV.to_h
-    proc_environment = nil
+  INITIAL_ENVIRONMENT = ENV.to_h
+  INITIAL_PROC_ENVIRONMENT = if RUBY_PLATFORM.include?("linux")
+    File.binread("/proc/self/environ")
+  end
 
-    if RUBY_PLATFORM.include?("linux")
-      proc_environment = File.binread("/proc/self/environ")
-      assert_not_empty(proc_environment)
-    end
+  require "proc_environ"
 
+  def setup
+    @environment = INITIAL_ENVIRONMENT
+    @proc_environment = INITIAL_PROC_ENVIRONMENT
+
+    assert_not_empty(@proc_environment) if @proc_environment
+  end
+
+  def test_require
     require "proc_environ"
 
     assert_respond_to(ENV, :scrub_proc_data)
     assert_respond_to(ENV, :mask_proc_data)
-    assert_equal(environment, ENV.to_h)
+    assert_respond_to(ENV, :drop_proc_data)
+    assert_equal(@environment, ENV.to_h)
+    assert_equal(@proc_environment, File.binread("/proc/self/environ")) if @proc_environment
+  end
 
-    if proc_environment
-      assert_equal(proc_environment, File.binread("/proc/self/environ"))
-      assert_nil(ENV.mask_proc_data)
-      assert_equal(mask(proc_environment), File.binread("/proc/self/environ"))
-      assert_equal(environment, ENV.to_h)
+  def test_mask_proc_data_survives_fork
+    proc_environment = fork_after(:mask_proc_data)
 
-      assert_nil(ENV.scrub_proc_data)
-      assert_equal("\0".b * proc_environment.bytesize, File.binread("/proc/self/environ"))
-      assert_equal(environment, ENV.to_h)
-    else
-      assert_nil(ENV.mask_proc_data)
-      assert_nil(ENV.scrub_proc_data)
-      assert_equal(environment, ENV.to_h)
-    end
+    assert_equal(mask(@proc_environment), proc_environment) if proc_environment
+  end
 
-    ENV["PROC_ENVIRON_MUTATION_TEST"] = "still works"
-    assert_equal("still works", ENV["PROC_ENVIRON_MUTATION_TEST"])
-  ensure
-    ENV.delete("PROC_ENVIRON_MUTATION_TEST")
+  def test_scrub_proc_data_survives_fork
+    proc_environment = fork_after(:scrub_proc_data)
+
+    assert_equal("\0".b * @proc_environment.bytesize, proc_environment) if proc_environment
+  end
+
+  def test_drop_proc_data_survives_fork
+    proc_environment = fork_after(:drop_proc_data, privileged: true)
+
+    assert_empty(proc_environment) if proc_environment
   end
 
   private
+
+  def fork_after(method, privileged: false)
+    omit("fork is not supported") unless Process.respond_to?(:fork)
+
+    reader, writer = IO.pipe
+    worker = fork do
+      reader.close
+      begin
+        result = ENV.public_send(method)
+        child = fork do
+          proc_environment = File.binread("/proc/self/environ") if @proc_environment
+          Marshal.dump([:ok, result, ENV.to_h, proc_environment], writer)
+          writer.close
+          exit! 0
+        end
+        writer.close
+        _, status = Process.wait2(child)
+        exit! status.exitstatus
+      rescue StandardError => error
+        Marshal.dump([:error, error.class.name, error.message], writer)
+        writer.close
+        exit! 1
+      end
+    end
+    writer.close
+    payload = Marshal.load(reader)
+    reader.close
+    _, status = Process.wait2(worker)
+
+    if payload.first == :error
+      omit("CAP_SYS_RESOURCE is required") if privileged && payload[1] == "Errno::EPERM"
+      flunk("#{method} failed with #{payload[1]}: #{payload[2]}")
+    end
+
+    assert_predicate(status, :success?)
+    assert_nil(payload[1])
+    assert_equal(@environment, payload[2])
+    payload[3]
+  end
 
   def mask(contents)
     contents.split("\0", -1).map do |entry|

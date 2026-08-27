@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/prctl.h>
+#include <linux/prctl.h>
 
 static void
 read_env_range(unsigned long *env_start, unsigned long *env_end)
@@ -115,6 +117,20 @@ mask_proc_data(VALUE environment)
 
     return Qnil;
 }
+
+static VALUE
+drop_proc_data(VALUE environment)
+{
+    unsigned long env_start;
+    unsigned long env_end;
+
+    (void)environment;
+    read_env_range(&env_start, &env_end);
+    if (prctl(PR_SET_MM, PR_SET_MM_ENV_END, env_start, 0L, 0L) == -1)
+        rb_sys_fail("prctl(PR_SET_MM_ENV_END)");
+
+    return Qnil;
+}
 #else
 static VALUE
 scrub_proc_data(VALUE environment)
@@ -129,6 +145,13 @@ mask_proc_data(VALUE environment)
     (void)environment;
     return Qnil;
 }
+
+static VALUE
+drop_proc_data(VALUE environment)
+{
+    (void)environment;
+    return Qnil;
+}
 #endif
 
 void
@@ -139,4 +162,5 @@ Init_proc_environ(void)
 
     rb_define_singleton_method(environment, "scrub_proc_data", scrub_proc_data, 0);
     rb_define_singleton_method(environment, "mask_proc_data", mask_proc_data, 0);
+    rb_define_singleton_method(environment, "drop_proc_data", drop_proc_data, 0);
 }
