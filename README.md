@@ -37,6 +37,75 @@ use other gems. Scrub and mask need no Linux capabilities.
 > program started with `spawn`, `system`, or `exec` gets a fresh proc
 > environment. That program must load this gem and call a method for itself.
 
+## Forking servers
+
+Call a method in each child at boot. This will also cover a worker that the
+server may start later. The code below calls `scrub_proc_data`. You do not need
+a capability for it. You can call either of the other methods instead.
+
+### Unicorn
+
+Use Unicorn's `after_fork` hook in `config/unicorn.rb`:
+
+```ruby
+require "proc_environ"
+
+after_fork do |_server, _worker|
+  ENV.scrub_proc_data
+end
+```
+
+### Puma
+
+Use Puma's `before_worker_boot` hook in `config/puma.rb`. This hook will run in
+each cluster worker:
+
+```ruby
+require "proc_environ"
+
+before_worker_boot do
+  ENV.scrub_proc_data
+end
+```
+
+Puma will not run this hook in single mode. In that mode, call the method once
+during app boot.
+
+### Sidekiq
+
+Standard Sidekiq uses threads and does not fork. Its `startup` event will run
+before it sends jobs to those threads. Sidekiq Enterprise Swarm can start
+several child processes. Each child will run this hook:
+
+```ruby
+require "proc_environ"
+
+Sidekiq.configure_server do |config|
+  config.on(:startup) do
+    ENV.scrub_proc_data
+  end
+end
+```
+
+### Karafka
+
+Subscribe to Karafka's `app.running` event in `karafka.rb`. It will run in the
+server process. In Swarm mode, it will run in each forked node rather than the
+supervisor:
+
+```ruby
+require "proc_environ"
+
+Karafka::App.monitor.subscribe("app.running") do
+  ENV.scrub_proc_data
+end
+```
+
+This code will clean each child, but not the parent or supervisor. As another
+option, call the method in the parent before it starts to fork. Each child will
+inherit the change. If a child calls `drop_proc_data`, it must still have
+`CAP_SYS_RESOURCE` at that point.
+
 ## How it works
 
 CRuby moves its active environment during startup. Linux still keeps the old
