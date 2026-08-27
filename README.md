@@ -32,6 +32,19 @@ Linux exposes the environment passed at process start through
 `/proc/self/environ`. ENVameleon lets a Ruby process mask, scrub, or drop that
 view after boot. Ruby's live `ENV` stays intact.
 
+### Why this matters
+
+Suppose your app keeps its credentials in an encrypted file. Your container
+runner passes the unlock key through the process environment. The encrypted
+file may seem safe even if an attacker can read any file that the app can
+access.
+
+Guess again. Linux also exposes `/proc/self/environ` as a file. It may hold the
+unlock key passed at process launch. An attacker who reads both files can
+decrypt the credentials, recover a session signing key, and forge sessions.
+
+ENVameleon removes this copy of the key from the proc view after app boot.
+
 The gem has no runtime dependencies. Loading it does not change anything. Your
 app chooses when to call one of its three methods.
 
