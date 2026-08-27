@@ -90,8 +90,9 @@ ENV.drop_proc_data
 
 Choose the least power you need.
 
-Without that right, `ENV.drop_proc_data` raises `Errno::EPERM` on
-Linux.
+> [!IMPORTANT]
+> `ENV.drop_proc_data` requires `CAP_SYS_RESOURCE` on Linux. Without it, the
+> method raises `Errno::EPERM`.
 
 Masking works on raw bytes, not characters. It replaces all value bytes except
 the first and last with `*`. Values shorter than three bytes stay unchanged.
