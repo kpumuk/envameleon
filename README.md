@@ -195,6 +195,12 @@ If a child calls `ENV.drop_proc_data`, it must still have the needed Linux right
 
 ## Security Limits
 
+> [!WARNING]
+> **`CAP_SYS_RESOURCE` grants broad powers outside ENVameleon.**
+>
+> `ENV.drop_proc_data` needs this Linux capability. Grant it only if you accept
+> its wider access. Masking and scrubbing do not need it.
+
 ENVameleon changes only what `/proc/self/environ` shows. It does not erase every
 copy of a secret. It gives no protection from memory disclosure, debuggers, or
 core dumps.
@@ -202,10 +208,6 @@ core dumps.
 Dropping leaves the old bytes in memory. Masking keeps variable names and the
 outer bytes of each value. Short values remain fully visible. Scrubbing
 overwrites the old proc range, but a secret may still exist elsewhere.
-
-`CAP_SYS_RESOURCE` grants powers beyond changing this proc view. Give it to a
-process only when you accept those powers. Masking and scrubbing do not
-need it.
 
 [Back to top](#readme-top).
 
