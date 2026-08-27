@@ -82,11 +82,11 @@ ENV.drop_proc_data
 # /proc/self/environ is now zero bytes long
 ```
 
-| Method | Result in `/proc/self/environ` | File length | Linux right | Return value | Non-Linux | Plain `fork` |
-| --- | --- | --- | --- | --- | --- | --- |
-| `ENV.mask_proc_data` | Names plus the first and last value byte | Unchanged | None | `nil` | No-op | Inherited |
-| `ENV.scrub_proc_data` | NUL bytes | Unchanged | None | `nil` | No-op | Inherited |
-| `ENV.drop_proc_data` | Empty | Zero | `CAP_SYS_RESOURCE` | `nil` on success | No-op | Inherited |
+| Method | Result in `/proc/self/environ` | File length | Permissions |
+| --- | --- | --- | --- |
+| `ENV.mask_proc_data` | Names plus the first and last value byte | Unchanged | None |
+| `ENV.scrub_proc_data` | NUL bytes | Unchanged | None |
+| `ENV.drop_proc_data` | Empty | Zero | `CAP_SYS_RESOURCE` |
 
 Choose the least power you need.
 
