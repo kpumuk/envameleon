@@ -2,7 +2,7 @@
 
 Gem::Specification.new do |spec|
   spec.name = "envameleon"
-  spec.version = "0.1.0"
+  spec.version = "0.2.0"
   spec.authors = ["Dmytro Shteflyuk"]
   spec.summary = "Leave no ENVidence."
   spec.description = "Scrub, mask, or drop Linux's /proc/self/environ view without changing Ruby's ENV."
