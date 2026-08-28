@@ -11,6 +11,7 @@ permissions: {}
 
 jobs:
   release:
+    if: github.repository == 'kpumuk/envameleon' && github.ref == 'refs/heads/main'
     name: Publish gem release
     runs-on: ubuntu-latest
     timeout-minutes: 10
