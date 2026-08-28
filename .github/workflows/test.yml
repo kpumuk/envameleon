@@ -24,6 +24,7 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       latest: ${{ steps.versions.outputs.latest }}
+      next: ${{ steps.versions.outputs.next }}
       versions: ${{ steps.versions.outputs.versions }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -82,8 +83,8 @@ jobs:
         run: ruby .github/scripts/test_noop_gem.rb pkg
 
   test-source-fallback-gem:
-    name: Source fallback gem / Ruby head
-    needs: build-gems
+    name: Source fallback gem / Ruby ${{ needs.native-ruby-versions.outputs.next }} (head)
+    needs: [native-ruby-versions, build-gems]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -103,6 +104,8 @@ jobs:
           path: pkg
       - name: Compile, install, and test the source fallback gem
         run: ruby .github/scripts/test_source_fallback_gem.rb pkg
+        env:
+          EXPECTED_RUBY_API: ${{ needs.native-ruby-versions.outputs.next }}
 
   test-gem-resolution:
     name: Gem resolution

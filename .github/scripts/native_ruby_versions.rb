@@ -11,5 +11,6 @@ if (github_output = ENV["GITHUB_OUTPUT"])
   File.open(github_output, "a") do |file|
     file.puts "versions=#{versions}"
     file.puts "latest=#{ENVAMELEON_RUBY_API_VERSIONS.last}"
+    file.puts "next=#{ENVAMELEON_NEXT_RUBY_API_VERSION}"
   end
 end

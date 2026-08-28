@@ -6,6 +6,10 @@ require "tmpdir"
 
 require_relative "verify_release_gems"
 
+expected_ruby_api = ENV.fetch("EXPECTED_RUBY_API")
+actual_ruby_api = RUBY_VERSION.split(".").first(2).join(".")
+abort "Expected Ruby #{expected_ruby_api}, got #{RUBY_VERSION}" unless actual_ruby_api == expected_ruby_api
+
 def run!(*command, env: {})
   stdout, stderr, status = Open3.capture3(env, *command)
   $stdout.write(stdout)
