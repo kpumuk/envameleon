@@ -98,7 +98,7 @@ class ENVameleonTest < Test::Unit::TestCase
         writer.close
         _, status = Process.wait2(child)
         exit! status.exitstatus
-      rescue StandardError => error
+      rescue => error
         Marshal.dump([:error, error.class.name, error.message], writer)
         writer.close
         exit! 1
