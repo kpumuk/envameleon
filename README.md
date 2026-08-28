@@ -250,6 +250,7 @@ elsewhere:
 ```console
 bundle install
 bundle exec rake test
+bundle exec rake standard
 ```
 
 On Linux, the drop test runs when `CAP_SYS_RESOURCE` is available. Otherwise,

@@ -5,6 +5,7 @@ require "rake/extensiontask"
 require "rake_compiler_dock"
 require "bundler"
 require "fileutils"
+require "standard/rake"
 
 require_relative ".github/scripts/native_platforms"
 
