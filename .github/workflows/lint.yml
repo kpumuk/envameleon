@@ -1,0 +1,26 @@
+name: lint
+
+on: [push, pull_request]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  cppcheck:
+    name: Cppcheck
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Update apt index
+        run: sudo apt-get update
+      - name: Install cppcheck
+        run: sudo apt-get install --yes --no-install-recommends cppcheck
+      - name: Run cppcheck
+        run: cppcheck --enable=style --error-exitcode=1 ext/envameleon/envameleon.c

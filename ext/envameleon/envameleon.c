@@ -15,6 +15,7 @@ read_env_range(unsigned long *env_start, unsigned long *env_end)
     char *field;
     char *end;
     FILE *file = fopen("/proc/self/stat", "r");
+    int error = 0;
     int number;
     size_t length;
 
@@ -22,16 +23,14 @@ read_env_range(unsigned long *env_start, unsigned long *env_end)
         rb_sys_fail("fopen(/proc/self/stat)");
 
     length = fread(stat, 1, sizeof(stat), file);
-    if (ferror(file)) {
-        int error = errno == 0 ? EIO : errno;
-        fclose(file);
-        rb_syserr_fail(error, "fread(/proc/self/stat)");
-    }
-    if (length == sizeof(stat)) {
-        fclose(file);
-        rb_raise(rb_eRuntimeError, "/proc/self/stat is too large");
-    }
+    if (ferror(file))
+        error = errno == 0 ? EIO : errno;
     fclose(file);
+
+    if (error != 0)
+        rb_syserr_fail(error, "fread(/proc/self/stat)");
+    if (length == sizeof(stat))
+        rb_raise(rb_eRuntimeError, "/proc/self/stat is too large");
     if (length == 0)
         rb_raise(rb_eRuntimeError, "empty /proc/self/stat");
     stat[length] = '\0';
@@ -102,16 +101,15 @@ mask_proc_data(VALUE environment)
         size_t remaining = (char *)env_end - entry;
         char *terminator = memchr(entry, '\0', remaining);
         char *equals;
-        char *value;
-        size_t value_length;
 
         if (terminator == NULL)
             rb_raise(rb_eRuntimeError, "invalid environment data");
 
         equals = memchr(entry, '=', terminator - entry);
         if (equals != NULL) {
-            value = equals + 1;
-            value_length = terminator - value;
+            char *value = equals + 1;
+            size_t value_length = terminator - value;
+
             if (value_length > 2)
                 memset(value + 1, '*', value_length - 2);
         }
