@@ -22,17 +22,19 @@ class PackagingTest < Test::Unit::TestCase
 
     minimum = ENVAMELEON_RUBY_API_VERSIONS.first
     next_ruby = ENVAMELEON_NEXT_RUBY_API_VERSION
-    assert_equal(Gem::Requirement.new(">= #{minimum}"), ENVAMELEON_NOOP_RUBY_REQUIREMENT)
+    assert_equal(Gem::Requirement.new(">= #{minimum}.0"), ENVAMELEON_RUBY_REQUIREMENT)
+    specification = Gem::Specification.load(File.expand_path("../envameleon.gemspec", __dir__))
+    assert_equal(ENVAMELEON_RUBY_REQUIREMENT, specification.required_ruby_version)
     assert_equal(
-      Gem::Requirement.new(">= #{minimum}", "< #{next_ruby}.0.dev"),
+      Gem::Requirement.new(ENVAMELEON_RUBY_REQUIREMENT, "< #{next_ruby}.0.dev"),
       ENVAMELEON_NATIVE_RUBY_REQUIREMENT
     )
-    assert_equal(Gem::Requirement.new(">= #{next_ruby}.0.dev"), ENVAMELEON_SOURCE_RUBY_REQUIREMENT)
 
     latest_supported = Gem::Version.new("#{ENVAMELEON_RUBY_API_VERSIONS.last}.99")
     next_development = Gem::Version.new("#{next_ruby}.0dev")
+    assert_true(ENVAMELEON_RUBY_REQUIREMENT.satisfied_by?(Gem::Version.new("#{minimum}.0")))
+    assert_true(ENVAMELEON_RUBY_REQUIREMENT.satisfied_by?(next_development))
     assert_true(ENVAMELEON_NATIVE_RUBY_REQUIREMENT.satisfied_by?(latest_supported))
     assert_false(ENVAMELEON_NATIVE_RUBY_REQUIREMENT.satisfied_by?(next_development))
-    assert_true(ENVAMELEON_SOURCE_RUBY_REQUIREMENT.satisfied_by?(next_development))
   end
 end

@@ -95,8 +95,11 @@ module ENVameleon
           [platform, ruby_version, expected_platform]
         end
       end
+      source_fallback = [supported_rubies.first, next_ruby].map do |ruby_version|
+        ["x86_64-freebsd", ruby_version, ENVAMELEON_SOURCE_PLATFORM]
+      end
 
-      linux + non_linux
+      linux + non_linux + source_fallback
     end
 
     def resolve_with_rubygems(package_set, version, platform_name, ruby_version)

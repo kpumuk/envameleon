@@ -15,15 +15,12 @@ abort "Could not load envameleon.gemspec" unless specification
 noop_specifications = ENVAMELEON_NOOP_PLATFORMS.map do |platform|
   specification.dup.tap do |noop_specification|
     noop_specification.platform = Gem::Platform.new(platform)
-    noop_specification.required_ruby_version = ENVAMELEON_NOOP_RUBY_REQUIREMENT
   end
 end
 
 source_specification = specification.dup
 source_specification.platform = Gem::Platform::RUBY
-source_specification.required_ruby_version = ENVAMELEON_SOURCE_RUBY_REQUIREMENT
 source_specification.files += Dir["ext/**/*.{c,rb}"]
-source_specification.files.delete("lib/envameleon/noop.rb")
 source_specification.extensions = ["ext/envameleon/extconf.rb"]
 
 bundler_version = Bundler::VERSION

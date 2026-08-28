@@ -2,13 +2,13 @@
 
 Gem::Specification.new do |spec|
   spec.name = "envameleon"
-  spec.version = "0.2.0"
+  spec.version = "0.3.0"
   spec.authors = ["Dmytro Shteflyuk"]
   spec.summary = "Leave no ENVidence."
   spec.description = "Scrub, mask, or drop Linux's /proc/self/environ view without changing Ruby's ENV."
   spec.license = "MIT"
   spec.homepage = "https://github.com/kpumuk/envameleon"
-  spec.required_ruby_version = ">= 3.2"
+  spec.required_ruby_version = ">= 3.2.0"
   spec.files = Dir["README.md", "LICENSE.txt", "lib/**/*.rb"]
   spec.require_paths = ["lib"]
   spec.metadata = {

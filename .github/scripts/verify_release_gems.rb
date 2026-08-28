@@ -62,7 +62,7 @@ module ENVameleon
       abort "No-op #{platform} gem contains repository assets" if specification.files.any? { |path| path.start_with?("assets/") }
       abort "No-op #{platform} gem is missing its implementation" unless specification.files.include?("lib/envameleon/noop.rb")
       abort "No-op #{platform} gem contains native binaries" if specification.files.any? { |path| path.match?(%r{\Alib/envameleon/\d+\.\d+/}) }
-      unless specification.required_ruby_version == ENVAMELEON_NOOP_RUBY_REQUIREMENT
+      unless specification.required_ruby_version == ENVAMELEON_RUBY_REQUIREMENT
         abort "No-op #{platform} Ruby requirement differs: #{specification.required_ruby_version}"
       end
     end
@@ -75,9 +75,9 @@ module ENVameleon
       actual_sources = specification.files.grep(%r{\Aext/})
       abort "Source fallback gem build sources differ: #{actual_sources}" unless actual_sources.sort == expected_sources
       abort "Source fallback gem contains repository assets" if specification.files.any? { |path| path.start_with?("assets/") }
-      abort "Source fallback gem contains the non-Linux no-op" if specification.files.include?("lib/envameleon/noop.rb")
+      abort "Source fallback gem is missing the non-Linux no-op" unless specification.files.include?("lib/envameleon/noop.rb")
       abort "Source fallback gem contains native binaries" if specification.files.any? { |path| path.match?(%r{\Alib/envameleon/\d+\.\d+/}) }
-      unless specification.required_ruby_version == ENVAMELEON_SOURCE_RUBY_REQUIREMENT
+      unless specification.required_ruby_version == ENVAMELEON_RUBY_REQUIREMENT
         abort "Source fallback Ruby requirement differs: #{specification.required_ruby_version}"
       end
     end
