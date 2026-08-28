@@ -153,7 +153,7 @@ drop_proc_data(VALUE environment)
 }
 #endif
 
-void
+RUBY_FUNC_EXPORTED void
 Init_envameleon(void)
 {
     ID environment_id = rb_intern2("ENV", 3);
