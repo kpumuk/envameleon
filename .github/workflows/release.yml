@@ -36,6 +36,8 @@ jobs:
           compression-level: 0
 
   build-native-gems:
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
