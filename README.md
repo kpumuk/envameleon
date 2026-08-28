@@ -19,6 +19,7 @@
 
 - [About](#about)
 - [Getting Started](#getting-started)
+- [Native Gems](#native-gems)
 - [Usage](#usage)
 - [How It Works](#how-it-works)
 - [Process Inheritance](#process-inheritance)
@@ -76,6 +77,35 @@ Then load it:
 
 ```ruby
 require "envameleon"
+```
+
+[Back to top](#readme-top).
+
+## Native Gems
+
+ENVameleon publishes precompiled native gems for its supported CRuby minors on:
+
+- GNU/Linux and musl Linux on x86-64 and AArch64
+
+The platform-neutral gem contains the documented pure-Ruby no-ops for macOS,
+Windows, and other non-Linux systems. There is no native code to compile on
+those systems. Linux is split into `-linux-gnu` and `-linux-musl` gems so a
+glibc binary is never mistaken for a musl binary. These native gems require
+RubyGems 3.3.22 or newer; musl users should use Bundler 2.5.6 or newer.
+
+Each precompiled Linux gem contains a separate binary for every supported Ruby
+minor and has no extension build hook. When Linux runs a newer Ruby API,
+RubyGems selects the `universal-linux` source fallback gem instead. That gem
+runs `extconf.rb` and requires a C compiler, Make, and the Ruby headers. The
+platform-neutral gem remains compiler-free. If neither a native nor source
+fallback gem applies, `require "envameleon"` fails closed instead of silently
+exposing the process environment.
+
+Every GitHub release includes the gems and `SHA256SUMS`. Release gems also have
+GitHub build-provenance attestations, which can be checked with:
+
+```console
+gh attestation verify envameleon-0.2.0-x86_64-linux-gnu.gem --repo kpumuk/envameleon
 ```
 
 [Back to top](#readme-top).
@@ -213,21 +243,33 @@ overwrites the old proc range, but a secret may still exist elsewhere.
 
 ## Development
 
-Build the native extension and run the `test/unit` suite:
+Install the checksum-locked development bundle and run the `test/unit` suite.
+The test task compiles the extension on Linux and exercises the pure-Ruby no-ops
+elsewhere:
 
 ```console
-ruby -Cext/envameleon extconf.rb
-make -C ext/envameleon
-ruby -Ilib -Iext test/test_envameleon.rb
+bundle install
+bundle exec rake test
 ```
 
 On Linux, the drop test runs when `CAP_SYS_RESOURCE` is available. Otherwise,
 that one test is omitted.
 
-Build the gem with:
+Build the platform-neutral and Linux source fallback gems with:
 
 ```console
-gem build envameleon.gemspec
+bundle exec rake gem
+```
+
+Native builds run inside the versioned image selected by the
+checksum-locked `rake-compiler-dock` gem. The image installs the exact Bundler
+version recorded in `Gemfile.lock`; Bundler then validates its own locked
+checksum and installs every other dependency from the prepared local cache:
+
+```console
+bundle cache --all-platforms
+bundle exec rake gem:x86_64-linux-gnu
+ruby .github/scripts/verify_native_gem.rb pkg/envameleon-0.2.0-x86_64-linux-gnu.gem x86_64-linux-gnu
 ```
 
 ## License

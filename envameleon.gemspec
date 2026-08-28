@@ -9,12 +9,16 @@ Gem::Specification.new do |spec|
   spec.license = "MIT"
   spec.homepage = "https://github.com/kpumuk/envameleon"
   spec.required_ruby_version = ">= 3.2"
-  spec.files = Dir["README.md", "LICENSE.txt", "lib/**/*.rb", "ext/**/*.{c,rb}"]
+  spec.files = Dir["README.md", "LICENSE.txt", "lib/**/*.rb"]
   spec.require_paths = ["lib"]
-  spec.extensions = ["ext/envameleon/extconf.rb"]
   spec.metadata = {
     "bug_tracker_uri" => "#{spec.homepage}/issues",
     "rubygems_mfa_required" => "true",
     "source_code_uri" => spec.homepage
   }
+
+  spec.add_development_dependency "rake", "~> 13.2"
+  spec.add_development_dependency "rake-compiler", "~> 1.3.1"
+  spec.add_development_dependency "rake-compiler-dock", "~> 1.12"
+  spec.add_development_dependency "test-unit", "~> 3.7"
 end

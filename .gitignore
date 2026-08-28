@@ -6,3 +6,10 @@
 /ext/envameleon/*.so
 /envameleon-*.gem
 /pkg/
+/.bundle/
+/lib/envameleon/envameleon.bundle
+/lib/envameleon/envameleon.dll
+/lib/envameleon/envameleon.dylib
+/lib/envameleon/envameleon.so
+/tmp/
+/vendor/
