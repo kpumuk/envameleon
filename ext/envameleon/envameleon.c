@@ -7,7 +7,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/prctl.h>
-#include <linux/prctl.h>
 
 static void
 read_env_range(unsigned long *env_start, unsigned long *env_end)
