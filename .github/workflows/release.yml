@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  release:
+    name: Publish gem release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: release
+
+    permissions:
+      contents: write # Required to create the GitHub release and tag.
+      id-token: write # Required by RubyGems trusted publishing.
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        with:
+          ruby-version: "3.4"
+          bundler-cache: false
+      - name: Read and check release metadata
+        shell: ruby {0}
+        run: |
+          specification = Gem::Specification.load("envameleon.gemspec")
+          abort "Could not load envameleon.gemspec" unless specification
+
+          release_tag = "v#{specification.version}"
+          tag_exists = system(
+            "git", "rev-parse", "--verify", "--quiet", "refs/tags/#{release_tag}",
+            out: File::NULL
+          )
+          abort "#{release_tag} already exists; bump the gem version first" if tag_exists
+
+          File.open(ENV.fetch("GITHUB_ENV"), "a") do |file|
+            file.puts "GEM_FILE=#{specification.file_name}"
+            file.puts "RELEASE_TAG=#{release_tag}"
+          end
+      - name: Build gem
+        run: gem build envameleon.gemspec --output "$GEM_FILE"
+      - name: Configure RubyGems credentials
+        uses: rubygems/configure-rubygems-credentials@dc5a8d8553e6ee01fc26761a49e99e733d17954a # v2.1.0
+      - name: Publish gem
+        run: gem push "$GEM_FILE"
+      - name: Create GitHub release
+        run: gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --generate-notes --latest
+        env:
+          GH_TOKEN: ${{ github.token }}
