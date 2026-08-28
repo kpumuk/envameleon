@@ -1,6 +1,9 @@
 name: test
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [main]
+  pull_request:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -16,14 +19,53 @@ jobs:
       min_version: 3.2
       engine: cruby
 
-  test:
-    name: Test ${{ matrix.os }} / Ruby ${{ matrix.ruby }}
-    needs: ruby-versions
+  native-ruby-versions:
+    name: Generate native Ruby versions
+    runs-on: ubuntu-24.04
+    outputs:
+      latest: ${{ steps.versions.outputs.latest }}
+      next: ${{ steps.versions.outputs.next }}
+      versions: ${{ steps.versions.outputs.versions }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: versions
+        run: ruby .github/scripts/native_ruby_versions.rb
+
+  build-gems:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/build.yml
+
+  test-source:
+    name: Source / Linux / Ruby ${{ needs.native-ruby-versions.outputs.latest }}
+    needs: native-ruby-versions
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        with:
+          ruby-version: ${{ needs.native-ruby-versions.outputs.latest }}
+      - name: Configure extension
+        run: ruby -Cext/envameleon extconf.rb
+      - name: Compile extension
+        run: make -C ext/envameleon
+      - name: Run tests
+        run: ruby -Ilib -Iext test/test_envameleon.rb
+      - name: Run privileged tests
+        run: sudo env "PATH=$PATH" ruby -Ilib -Iext test/test_envameleon.rb
+
+  test-noop-gem:
+    name: No-op gem / ${{ matrix.os }} / Ruby ${{ matrix.ruby }}
+    needs: [ruby-versions, build-gems]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [macos-latest, windows-latest]
         ruby: ${{ fromJson(needs.ruby-versions.outputs.versions) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -32,14 +74,127 @@ jobs:
       - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
         with:
           ruby-version: ${{ matrix.ruby }}
-      - name: Configure extension
-        run: ruby -Cext/envameleon extconf.rb
-      - name: Compile extension
-        run: make -C ext/envameleon
-      - name: Run tests
-        run: ruby -Ilib -Iext test/test_envameleon.rb
-      - name: Run privileged Linux tests
-        if: runner.os == 'Linux'
-        run: sudo env "PATH=$PATH" ruby -Ilib -Iext test/test_envameleon.rb
-      - name: Build gem
-        run: gem build envameleon.gemspec
+          bundler-cache: true
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: gem-portable
+          path: pkg
+      - name: Install without a compiler and test platform behavior
+        run: ruby .github/scripts/test_noop_gem.rb pkg
+
+  test-source-fallback-gem:
+    name: Source fallback gem / Ruby ${{ needs.native-ruby-versions.outputs.next }} (head)
+    needs: [native-ruby-versions, build-gems]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Update apt index
+        run: sudo apt-get update
+      - name: Install binutils
+        run: sudo apt-get install --yes --no-install-recommends binutils
+      - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        with:
+          ruby-version: head
+          bundler-cache: true
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: gem-portable
+          path: pkg
+      - name: Compile, install, and test the source fallback gem
+        run: ruby .github/scripts/test_source_fallback_gem.rb pkg
+        env:
+          EXPECTED_RUBY_API: ${{ needs.native-ruby-versions.outputs.next }}
+
+  test-gem-resolution:
+    name: Gem resolution
+    needs: build-gems
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        with:
+          ruby-version: "4.0"
+          bundler-cache: true
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: gem-*
+          path: pkg
+          merge-multiple: true
+      - name: Test RubyGems and Bundler resolution
+        run: bundle exec ruby .github/scripts/test_gem_resolution.rb pkg
+
+  test-native-linux-gnu:
+    name: Native ${{ matrix.target.platform }} / Ruby ${{ matrix.ruby }}
+    needs: [native-ruby-versions, build-gems]
+    runs-on: ${{ matrix.target.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby: ${{ fromJson(needs.native-ruby-versions.outputs.versions) }}
+        target:
+          - platform: x86_64-linux-gnu
+            runner: ubuntu-24.04
+          - platform: aarch64-linux-gnu
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        with:
+          ruby-version: ${{ matrix.ruby }}
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: gem-${{ matrix.target.platform }}
+          path: pkg
+      - run: ruby .github/scripts/test_native_gem.rb pkg
+        env:
+          EXPECTED_PLATFORM: ${{ matrix.target.platform }}
+
+  test-native-linux-musl:
+    name: Native ${{ matrix.target.platform }} / Ruby ${{ matrix.ruby_image.ruby }}
+    needs: build-gems
+    runs-on: ${{ matrix.target.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby_image:
+          - ruby: "3.2"
+            image: ruby@sha256:d206c25708a44df6a7ce22213ee5da9fc0a9f7b31ce884429ba758db48abdc62
+          - ruby: "3.3"
+            image: ruby@sha256:2f763b37070564bb00b736f1d4dba6e8f8d203b5f93b94463879fd8d79966f28
+          - ruby: "3.4"
+            image: ruby@sha256:c5a5064d190055633011c03aa800170cc36945ff3afb5f6c915329f92d6f1e00
+          - ruby: "4.0"
+            image: ruby@sha256:6ec7aeb4f3f0b67a21fb73a83fc20a4055696e64b933229f68ec805a3de38fcc
+        target:
+          - platform: x86_64-linux-musl
+            runner: ubuntu-24.04
+          - platform: aarch64-linux-musl
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: gem-${{ matrix.target.platform }}
+          path: pkg
+      - name: Install without a compiler and test native behavior
+        run: >-
+          docker run --rm --read-only --network none
+          --cap-drop ALL --security-opt no-new-privileges
+          --tmpfs /tmp:rw,exec,nosuid,size=32m
+          --env EXPECTED_PLATFORM
+          --volume "$WORKSPACE:/work:ro"
+          --workdir /work
+          "$RUBY_IMAGE"
+          ruby .github/scripts/test_native_gem.rb pkg
+        env:
+          EXPECTED_PLATFORM: ${{ matrix.target.platform }}
+          RUBY_IMAGE: ${{ matrix.ruby_image.image }}
+          WORKSPACE: ${{ github.workspace }}
