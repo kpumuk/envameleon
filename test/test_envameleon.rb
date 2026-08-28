@@ -54,15 +54,40 @@ class ENVameleonTest < Test::Unit::TestCase
     assert_empty(proc_data) if proc_data
   end
 
+  def test_mask_proc_data_with_newline_in_process_name
+    omit("Linux behavior only") unless @proc_data
+
+    proc_data = fork_after(:mask_proc_data, process_name: "bad\nname")
+
+    assert_equal(mask(@proc_data), proc_data)
+  end
+
+  def test_scrub_proc_data_with_newline_in_process_name
+    omit("Linux behavior only") unless @proc_data
+
+    proc_data = fork_after(:scrub_proc_data, process_name: "bad\nname")
+
+    assert_equal("\0".b * @proc_data.bytesize, proc_data)
+  end
+
+  def test_drop_proc_data_with_newline_in_process_name
+    omit("Linux behavior only") unless @proc_data
+
+    proc_data = fork_after(:drop_proc_data, privileged: true, process_name: "bad\nname")
+
+    assert_empty(proc_data)
+  end
+
   private
 
-  def fork_after(method, privileged: false)
+  def fork_after(method, privileged: false, process_name: nil)
     omit("fork is not supported") unless Process.respond_to?(:fork)
 
     reader, writer = IO.pipe
     worker = fork do
       reader.close
       begin
+        File.binwrite("/proc/self/comm", process_name) if process_name
         result = ENV.public_send(method)
         child = fork do
           proc_data = File.binread("/proc/self/environ") if @proc_data

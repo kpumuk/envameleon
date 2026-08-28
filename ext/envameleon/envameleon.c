@@ -16,20 +16,25 @@ read_env_range(unsigned long *env_start, unsigned long *env_end)
     char *end;
     FILE *file = fopen("/proc/self/stat", "r");
     int number;
+    size_t length;
 
     if (file == NULL)
         rb_sys_fail("fopen(/proc/self/stat)");
 
-    if (fgets(stat, sizeof(stat), file) == NULL) {
-        int error = errno;
+    length = fread(stat, 1, sizeof(stat), file);
+    if (ferror(file)) {
+        int error = errno == 0 ? EIO : errno;
         fclose(file);
-        if (error != 0) {
-            errno = error;
-            rb_sys_fail("fgets(/proc/self/stat)");
-        }
-        rb_raise(rb_eRuntimeError, "empty /proc/self/stat");
+        rb_syserr_fail(error, "fread(/proc/self/stat)");
+    }
+    if (length == sizeof(stat)) {
+        fclose(file);
+        rb_raise(rb_eRuntimeError, "/proc/self/stat is too large");
     }
     fclose(file);
+    if (length == 0)
+        rb_raise(rb_eRuntimeError, "empty /proc/self/stat");
+    stat[length] = '\0';
 
     field = strrchr(stat, ')');
     if (field == NULL || field[1] != ' ')
