@@ -11,8 +11,15 @@ require_relative ".github/scripts/native_platforms"
 specification = Gem::Specification.load("envameleon.gemspec")
 abort "Could not load envameleon.gemspec" unless specification
 
+noop_specifications = ENVAMELEON_NOOP_PLATFORMS.map do |platform|
+  specification.dup.tap do |noop_specification|
+    noop_specification.platform = Gem::Platform.new(platform)
+    noop_specification.required_ruby_version = ENVAMELEON_NOOP_RUBY_REQUIREMENT
+  end
+end
+
 source_specification = specification.dup
-source_specification.platform = Gem::Platform.new(ENVAMELEON_SOURCE_PLATFORM)
+source_specification.platform = Gem::Platform::RUBY
 source_specification.required_ruby_version = ENVAMELEON_SOURCE_RUBY_REQUIREMENT
 source_specification.files += Dir["ext/**/*.{c,rb}"]
 source_specification.files.delete("lib/envameleon/noop.rb")
@@ -22,8 +29,9 @@ bundler_version = Bundler::VERSION
 
 RakeCompilerDock.set_ruby_cc_version(*ENVAMELEON_RUBY_REQUIREMENTS)
 
-Gem::PackageTask.new(specification).define
-Gem::PackageTask.new(source_specification).define
+[*noop_specifications, source_specification].each do |portable_specification|
+  Gem::PackageTask.new(portable_specification).define
+end
 
 Rake::ExtensionTask.new("envameleon/envameleon", specification) do |extension|
   extension.ext_dir = "ext/envameleon"

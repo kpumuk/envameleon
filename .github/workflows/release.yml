@@ -11,7 +11,7 @@ permissions: {}
 
 jobs:
   build-portable-gems:
-    name: Build platform-neutral and source fallback gems
+    name: Build no-op and source fallback gems
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -25,7 +25,7 @@ jobs:
         with:
           ruby-version: "4.0"
           bundler-cache: true
-      - name: Build platform-neutral and source fallback gems
+      - name: Build no-op and source fallback gems
         run: bundle exec rake gem
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -89,7 +89,7 @@ jobs:
           subject-path: pkg/*.gem
       - name: Configure RubyGems credentials
         uses: rubygems/configure-rubygems-credentials@dc5a8d8553e6ee01fc26761a49e99e733d17954a # v2.1.0
-      - name: Publish native gems, then platform-neutral gem
+      - name: Publish platform gems, then source fallback gem
         run: ruby .github/scripts/publish_gems.rb pkg
       - name: Create GitHub release with checksums and gems
         run: gh release create "$RELEASE_TAG" pkg/*.gem SHA256SUMS --target "$GITHUB_SHA" --generate-notes --latest

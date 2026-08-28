@@ -21,7 +21,7 @@ module ENVameleon
       abort "No gems found in #{directory}" if files.empty?
 
       packages = files.to_h { |file| [Gem::Package.new(file).spec.platform.to_s, file] }
-      expected_platforms = ["ruby", ENVAMELEON_SOURCE_PLATFORM, *ENVAMELEON_NATIVE_PLATFORMS]
+      expected_platforms = [ENVAMELEON_SOURCE_PLATFORM, *ENVAMELEON_NOOP_PLATFORMS, *ENVAMELEON_NATIVE_PLATFORMS]
       abort "Duplicate gem platforms found" unless packages.length == files.length
       abort "Expected #{expected_platforms.sort}, got #{packages.keys.sort}" unless packages.keys.sort == expected_platforms.sort
 
@@ -46,22 +46,25 @@ module ENVameleon
       abort "Unexpected filename for #{file}" unless File.basename(file) == specification.file_name
 
       case platform
-      when "ruby"
-        verify_platform_neutral_specification!(specification)
       when ENVAMELEON_SOURCE_PLATFORM
         verify_source_specification!(specification)
+      when *ENVAMELEON_NOOP_PLATFORMS
+        verify_noop_specification!(specification, platform)
       else
         verify_native_specification!(specification, platform)
         verify_binaries!(package, platform)
       end
     end
 
-    def verify_platform_neutral_specification!(specification)
-      abort "Platform-neutral gem has an extension build hook" unless specification.extensions.empty?
-      abort "Platform-neutral gem contains build sources" if specification.files.any? { |path| path.start_with?("ext/") }
-      abort "Platform-neutral gem contains repository assets" if specification.files.any? { |path| path.start_with?("assets/") }
-      abort "Platform-neutral gem is missing its no-op implementation" unless specification.files.include?("lib/envameleon/noop.rb")
-      abort "Platform-neutral gem contains native binaries" if specification.files.any? { |path| path.match?(%r{\Alib/envameleon/\d+\.\d+/}) }
+    def verify_noop_specification!(specification, platform)
+      abort "No-op #{platform} gem has an extension build hook" unless specification.extensions.empty?
+      abort "No-op #{platform} gem contains build sources" if specification.files.any? { |path| path.start_with?("ext/") }
+      abort "No-op #{platform} gem contains repository assets" if specification.files.any? { |path| path.start_with?("assets/") }
+      abort "No-op #{platform} gem is missing its implementation" unless specification.files.include?("lib/envameleon/noop.rb")
+      abort "No-op #{platform} gem contains native binaries" if specification.files.any? { |path| path.match?(%r{\Alib/envameleon/\d+\.\d+/}) }
+      unless specification.required_ruby_version == ENVAMELEON_NOOP_RUBY_REQUIREMENT
+        abort "No-op #{platform} Ruby requirement differs: #{specification.required_ruby_version}"
+      end
     end
 
     def verify_source_specification!(specification)

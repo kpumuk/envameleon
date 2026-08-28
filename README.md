@@ -57,7 +57,7 @@ app chooses when to call one of its three methods.
 - Linux for changes to `/proc/self/environ`
 - The Linux `CAP_SYS_RESOURCE` right only for `ENV.drop_proc_data`
 
-On other systems, all three methods are safe no-ops.
+On macOS and Windows, all three methods are safe no-ops.
 
 ### Installation
 
@@ -87,19 +87,19 @@ ENVameleon publishes precompiled native gems for its supported CRuby minors on:
 
 - GNU/Linux and musl Linux on x86-64 and AArch64
 
-The platform-neutral gem contains the documented pure-Ruby no-ops for macOS,
-Windows, and other non-Linux systems. There is no native code to compile on
-those systems. Linux is split into `-linux-gnu` and `-linux-musl` gems so a
-glibc binary is never mistaken for a musl binary. These native gems require
-RubyGems 3.3.22 or newer; musl users should use Bundler 2.5.6 or newer.
+The macOS and Windows gems contain the documented pure-Ruby no-ops. There is no
+native code to compile on those systems. Linux is split into `-linux-gnu` and
+`-linux-musl` gems so a glibc binary is never mistaken for a musl binary. These
+native gems require RubyGems 3.3.22 or newer; musl users should use Bundler
+2.5.6 or newer.
 
 Each precompiled Linux gem contains a separate binary for every supported Ruby
 minor and has no extension build hook. When Linux runs a newer Ruby API,
-RubyGems selects the `universal-linux` source fallback gem instead. That gem
-runs `extconf.rb` and requires a C compiler, Make, and the Ruby headers. The
-platform-neutral gem remains compiler-free. If neither a native nor source
-fallback gem applies, `require "envameleon"` fails closed instead of silently
-exposing the process environment.
+RubyGems or Bundler selects the generic source gem instead. That gem runs
+`extconf.rb` and requires a C compiler, Make, and the Ruby headers. macOS and
+Windows continue to select their compiler-free no-op gems. If neither a native
+nor source fallback applies on Linux, `require "envameleon"` fails closed
+instead of silently exposing the process environment.
 
 Every GitHub release includes the gems and `SHA256SUMS`. Release gems also have
 GitHub build-provenance attestations, which can be checked with:
@@ -255,7 +255,7 @@ bundle exec rake test
 On Linux, the drop test runs when `CAP_SYS_RESOURCE` is available. Otherwise,
 that one test is omitted.
 
-Build the platform-neutral and Linux source fallback gems with:
+Build the macOS and Windows no-op gems and the Linux source fallback with:
 
 ```console
 bundle exec rake gem
