@@ -2,45 +2,58 @@ name: Build
 
 on:
   workflow_call:
-    inputs:
-      platform:
-        required: true
-        type: string
 
 permissions:
   contents: read
 
 jobs:
   build:
-    name: Build ${{ inputs.platform }}
+    name: Build ${{ matrix.target }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - portable
+          - aarch64-linux-gnu
+          - aarch64-linux-musl
+          - x86_64-linux-gnu
+          - x86_64-linux-musl
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Update apt index
+        if: matrix.target != 'portable'
         run: sudo apt-get update
       - name: Install binutils
+        if: matrix.target != 'portable'
         run: sudo apt-get install --yes --no-install-recommends binutils
       - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
         with:
           ruby-version: "4.0"
           bundler-cache: true
       - name: Cache locked build dependencies
+        if: matrix.target != 'portable'
         run: bundle cache --all-platforms
-      - name: Build gem
+      - name: Build portable gems
+        if: matrix.target == 'portable'
+        run: bundle exec rake gem
+      - name: Build native gem
+        if: matrix.target != 'portable'
         run: bundle exec rake "gem:$PLATFORM"
         env:
-          PLATFORM: ${{ inputs.platform }}
+          PLATFORM: ${{ matrix.target }}
       - name: Verify native gem metadata and binary architecture
+        if: matrix.target != 'portable'
         run: ruby .github/scripts/verify_native_gem.rb pkg "$PLATFORM"
         env:
-          PLATFORM: ${{ inputs.platform }}
+          PLATFORM: ${{ matrix.target }}
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: gem-${{ inputs.platform }}
+          name: gem-${{ matrix.target }}
           path: pkg/*.gem
           if-no-files-found: error
           retention-days: 7

@@ -10,50 +10,15 @@ concurrency:
 permissions: {}
 
 jobs:
-  build-portable-gems:
-    name: Build no-op and source fallback gems
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
+  build-gems:
     permissions:
       contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
-        with:
-          ruby-version: "4.0"
-          bundler-cache: true
-      - name: Build no-op and source fallback gems
-        run: bundle exec rake gem
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: gem-portable
-          path: pkg/*.gem
-          if-no-files-found: error
-          retention-days: 1
-          compression-level: 0
-
-  build-native-gems:
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        platform:
-          - aarch64-linux-gnu
-          - aarch64-linux-musl
-          - x86_64-linux-gnu
-          - x86_64-linux-musl
     uses: ./.github/workflows/build.yml
-    with:
-      platform: ${{ matrix.platform }}
 
   release:
     if: github.repository == 'kpumuk/envameleon' && github.ref == 'refs/heads/main'
     name: Verify and publish gem release
-    needs: [build-portable-gems, build-native-gems]
+    needs: build-gems
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment: release
